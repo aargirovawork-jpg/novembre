@@ -1,0 +1,52 @@
+/* Shared design tokens + base. Every component reads these variables. */
+:root {
+  --sand: #d3bf98;
+  --sand-light: #e6d6b4;
+  --sand-dark: #b99f73;
+  --paper: #efe8d8;
+  --paper-dark: #e0d5ba;
+  --ink: #2a1d12;
+  --ink-soft: rgba(42, 29, 18, .62);
+  --line: rgba(42, 29, 18, .22);
+
+  --serif: "Cormorant Garamond", "Playfair Display", Georgia, serif;
+  --sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --header-h: 72px;
+  --page-w: 1320px;
+  --gutter: clamp(16px, 3.4vw, 48px);
+  --radius: 28px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; scroll-padding-top: calc(var(--header-h) + 8px); }
+body {
+  background: linear-gradient(180deg, #e8e0cc 0%, #d9ceae 100%) fixed;
+  color: var(--ink);
+  font-family: var(--sans);
+  font-weight: 300;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration: none; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+img { max-width: 100%; display: block; }
+
+.container { width: min(100% - 2 * var(--gutter), var(--page-w)); margin-inline: auto; }
+.eyebrow {
+  font-size: 11px; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--ink-soft); font-weight: 400;
+}
+.btn {
+  display: inline-flex; align-items: center; gap: .6em;
+  padding: .85em 1.6em; border-radius: 999px;
+  border: 1px solid var(--ink);
+  font-size: 12px; letter-spacing: .14em; text-transform: uppercase; font-weight: 400;
+  transition: background .25s, color .25s;
+}
+.btn:hover { background: var(--ink); color: var(--paper); }
+
+/* custom elements are blocks */
+site-header, wardrobe-hero, brand-story, look-book, site-footer, outfit-card { display: block; }
+
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
