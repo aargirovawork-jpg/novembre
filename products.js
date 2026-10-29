@@ -3,7 +3,7 @@
    w, h    pixel size of the keyed asset in ../assets
    N, p    frames per direction of the ping-pong video, frame where the garment stands in profile
    hx      x of the hanger hook (0..1);  pl, pr  left/right edge of the profile;  front  width seen from the front */
-window.ASSETS = 'assets/';
+window.ASSETS = ';
 
 window.PRODUCTS = [
   { id: 'trench',     name: 'Le Trench — Sand',         price: 189, cm: 125, w: 420, h: 800, N: 95, p: 24, hx: .4952, pl: 94,  pr: 294, front: 405 },
