@@ -38,7 +38,7 @@
               <ul><li><a href="mailto:hello@novembre.example">hello@novembre.example</a></li><li>Kyiv, Ukraine</li><li>Mon–Fri, 10:00–18:00</li></ul>
             </div>
           </div>
-          <div class="sf-bottom"><span>© 2026 NOVEMBRE</span><span>Demo page — products and prices are placeholders</span></div>
+          <div class="sf-bottom"><span>© 2026 NOVEMBRE</span><span>Demo page. Products and prices are placeholders</span></div>
         </div>`;
     }
   }

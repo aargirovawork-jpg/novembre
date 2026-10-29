@@ -36,6 +36,10 @@
     .wh-item video { opacity: 0; }
     .wh-item.live video { opacity: 1; }
     .wh-item.live img { opacity: 0; }
+    /* Safari / iOS cannot play alpha WebM: an opaque green mp4 plays hidden and is keyed into the canvas on top */
+    .wh-item canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; pointer-events: none; opacity: 0; }
+    .wh-item.live canvas { opacity: 1; }
+    .wh-item.keyed video, .wh-item.live.keyed video { inset: auto; left: 0; top: 0; width: 2px; height: 2px; opacity: .01; }
     .wh-item::before { content: ""; position: absolute; top: -14px; bottom: -26px; left: calc(var(--hx) - var(--hit) / 2); width: var(--hit);
       pointer-events: auto; cursor: pointer; transition: width .3s ease, left .3s ease; }
     .wh-item.open::before { left: calc(var(--hx) - var(--hitW) / 2); width: var(--hitW); }
@@ -93,6 +97,13 @@
       <ellipse class="umb-drip" cx="60" cy="768" rx="3.4" ry="6"/>
       <ellipse class="umb-drip" cx="60" cy="768" rx="3" ry="5.2" style="animation-delay:2.1s"/>
     </svg>`;
+
+  /* browsers that cannot play alpha WebM (Safari, every iOS browser) get an opaque green mp4 keyed in a canvas. ?key=1 forces it for testing */
+  const UA = navigator.userAgent;
+  const IS_IOS = /iP(hone|ad|od)/.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const IS_SAFARI = /Safari/.test(UA) && !/Chrome|Chromium|CriOS|FxiOS|Edg|OPR|Android/.test(UA);
+  const KEYED = IS_IOS || IS_SAFARI || /[?&]key=1/.test(location.search);
+  const smooth = (x, a, b) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
   const UMB_CM = 88;   // closed umbrella, crook to tip, relative to the garments' real lengths
   const FPS = 24, OPEN_RATE = 2.2, CLOSE_RATE = 3, GAP = 9, MIN_SLOT = 46, DEFAULT_ID = 'bomber';
@@ -157,8 +168,11 @@
       el.innerHTML = `
         <div class="wh-sway" style="--dur:${(5 + Math.random() * 3).toFixed(1)}s; --del:${(-Math.random() * 6).toFixed(1)}s">
           <img src="${window.ASSETS}${it.id}_p.png" alt="${it.name}" draggable="false">
-          <video src="${window.ASSETS}${it.id}.webm" muted playsinline preload="auto" tabindex="-1"></video>
+          ${KEYED
+            ? `<video src="${window.ASSETS}${it.id}_k.mp4" muted playsinline webkit-playsinline preload="auto" tabindex="-1"></video><canvas></canvas>`
+            : `<video src="${window.ASSETS}${it.id}.webm" muted playsinline preload="auto" tabindex="-1"></video>`}
         </div>`;
+      if (KEYED) el.classList.add('keyed');
       this.querySelector('.wh-items').appendChild(el);
       it.el = el;
 
@@ -167,17 +181,45 @@
       const tp = (it.p + 0.5) / FPS;           // the profile frame on the way out
       let token = 0;
 
+      // opaque green frame -> transparent garment (same rule as the alpha WebM was made with), drawn into the canvas
+      const cv = el.querySelector('canvas'), ctx = cv && cv.getContext('2d', { willReadFrequently: true });
+      const paint = () => {
+        if (!ctx || v.readyState < 2 || !v.videoWidth) return;
+        const sc = Math.min(1, 640 / v.videoHeight), w = Math.round(v.videoWidth * sc), h = Math.round(v.videoHeight * sc);
+        if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+        ctx.drawImage(v, 0, 0, w, h);
+        const im = ctx.getImageData(0, 0, w, h), d = im.data, gb = it.gb || 72;
+        for (let k = 0; k < d.length; k += 4) {
+          const r = d[k], g = d[k + 1], b = d[k + 2], m = r > b ? r : b;
+          d[k + 3] = 255 * (1 - smooth((g - m) / gb, 0.38, 0.76));
+          if (g > m + 4) d[k + 1] = m + 4;               // despill
+        }
+        ctx.putImageData(im, 0, 0);
+      };
+      let raf = 0;
+      const loop = () => { if (!el.classList.contains('live')) { raf = 0; return; } paint(); raf = requestAnimationFrame(loop); };
+      const ready = cb => { if (v.readyState >= 1) cb(); else { v.addEventListener('loadedmetadata', cb, { once: true }); v.load(); } };
+
       const open = () => {
         const my = ++token;
         el.classList.add('open');
         this.hovered = i; this.spread(); this.setInfo(it);
         v.playbackRate = OPEN_RATE; v.loop = false;
-        // the way back of the ping-pong shows the same picture as the profile, but heads to the front
-        let t = el.classList.contains('live') ? v.currentTime : D() - tp;
-        if (t < D() / 2) t = D() - t;
-        const go = () => { if (my !== token) return; el.classList.add('live'); v.play().catch(() => {}); };
-        if (Math.abs(v.currentTime - t) < 0.005) go();
-        else { v.addEventListener('seeked', go, { once: true }); v.currentTime = t; setTimeout(go, 250); }
+        ready(() => {
+          if (my !== token) return;
+          // the way back of the ping-pong shows the same picture as the profile, but heads to the front
+          let t = el.classList.contains('live') ? v.currentTime : D() - tp;
+          if (t < D() / 2) t = D() - t;
+          const go = () => {
+            if (my !== token) return;
+            if (KEYED) paint();                 // first keyed frame is ready before the canvas is shown
+            el.classList.add('live');
+            if (KEYED && !raf) raf = requestAnimationFrame(loop);
+            v.play().catch(() => {});
+          };
+          if (Math.abs(v.currentTime - t) < 0.005) go();
+          else { v.addEventListener('seeked', go, { once: true }); v.currentTime = t; setTimeout(go, 250); }
+        });
       };
       const close = () => {
         const my = ++token;
@@ -240,7 +282,9 @@
       const need = measure(k), avail = cw * (mobile ? 0.94 : 0.9);
       if (need > avail) { k *= avail / need; measure(k); }
       const total = items.reduce((s, it) => s + it.slot, 0) + this.umb.slot;
-      let x = (cw - total) / 2;
+      const f0 = items[0], s0 = f0.cm * k / f0.h;
+      const overhang = Math.max(0, (f0.hx * f0.w - f0.pl) * s0 - f0.slot / 2) + 4;   // body of the first hanger reaching left of its slot
+      let x = Math.max((cw - total) / 2, overhang);
       items.forEach(it => {
         const s = it.cm * k / it.h, H = it.cm * k, W = it.w * s;
         it.el.style.setProperty('--H', H + 'px');
