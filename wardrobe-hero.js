@@ -188,11 +188,23 @@
         const sc = Math.min(1, 640 / v.videoHeight), w = Math.round(v.videoWidth * sc), h = Math.round(v.videoHeight * sc);
         if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
         ctx.drawImage(v, 0, 0, w, h);
-        const im = ctx.getImageData(0, 0, w, h), d = im.data, gb = it.gb || 72;
+        const im = ctx.getImageData(0, 0, w, h), d = im.data;
+        // Safari / iOS decode the green a little differently, so the real background colour is read from the two top corners of every frame
+        let br = 0, bg = 0, bb = 0, n = 0;
+        for (const x0 of [2, w - 10]) for (let y = 2; y < 10; y++) for (let x = x0; x < x0 + 8; x++) { const k = (y * w + x) * 4; br += d[k]; bg += d[k + 1]; bb += d[k + 2]; n++; }
+        br /= n; bg /= n; bb /= n;
+        let gb = bg - Math.max(br, bb);
+        const known = gb > 30;                                    // the corners really are green
+        if (!known) gb = it.gb || 72;
         for (let k = 0; k < d.length; k += 4) {
           const r = d[k], g = d[k + 1], b = d[k + 2], m = r > b ? r : b;
-          d[k + 3] = 255 * (1 - smooth((g - m) / gb, 0.38, 0.76));
-          if (g > m + 4) d[k + 1] = m + 4;               // despill
+          let a = 1 - smooth((g - m) / gb, 0.38, 0.76);
+          if (known && a > 0) {                                   // anything close to the background colour is background (compression noise)
+            const dr = r - br, dg = g - bg, db = b - bb, d2 = dr * dr + dg * dg + db * db;
+            if (d2 < 4900) a = Math.min(a, smooth(Math.sqrt(d2), 24, 70));
+          }
+          d[k + 3] = 255 * a;
+          if (g > m + 4) d[k + 1] = m + 4;                        // despill
         }
         ctx.putImageData(im, 0, 0);
       };
